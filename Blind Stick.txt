@@ -1,0 +1,175 @@
+#include "mp3tf16p.h"
+#include <SoftwareSerial.h>
+
+SoftwareSerial sim800lSerial(3, 2); // RX, TX
+const int echoPinC = 8;
+const int trigPinC = 9  ;
+
+const int echoPinR = 7;
+const int trigPinR = 6;
+
+const int echoPinL = 5;
+const int trigPinL = 4;
+
+const int buttonPin = A0;  // Pin number for the button --------
+
+MP3Player mp3(10,11);
+
+void setup(){
+
+
+  Serial.begin(9600);
+  sim800lSerial.begin(9600);
+
+  pinMode(buttonPin, INPUT);//-----------------
+
+  Serial.println("Initializing SIM800L...");
+
+  delay(2000);
+
+
+  pinMode(trigPinC,OUTPUT);
+  pinMode(echoPinC,INPUT);
+
+  pinMode(trigPinR,OUTPUT);
+  pinMode(echoPinR,INPUT);
+
+  pinMode(trigPinL,OUTPUT);
+  pinMode(echoPinL,INPUT);
+
+  pinMode(ledPin, OUTPUT);
+
+
+
+  mp3.initialize();
+ 
+}
+
+void loop(){
+
+  // mp3.serialPrintStatus(MP3_ALL_MESSAGE)
+
+  long durationCenter,durationRight,durationLeft, distanceCenter,distanceRight, distanceLeft;
+  
+
+  String phoneNumber = "+96178826448";
+  String message = "Send Help";
+  int button = digitalRead(buttonPin);
+
+    if (button==LOW){
+      mp3.playTrackNumber(4, 30);
+      Serial.println("helppppp");
+      sendSMS(phoneNumber, message);
+      digitalWrite(ledPin, HIGH);
+      delay(5000);
+      digitalWrite(ledPin, LOW);
+    }
+
+  digitalWrite(trigPinC, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPinC, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPinC, LOW);
+
+
+  durationCenter = pulseIn(echoPinC, HIGH);
+
+  digitalWrite(trigPinR, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPinR, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPinR, LOW);
+
+  durationRight = pulseIn(echoPinR, HIGH);
+
+
+  digitalWrite(trigPinL, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPinL, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPinL, LOW);
+
+  durationLeft = pulseIn(echoPinL, HIGH);
+
+
+
+  distanceCenter = microsecondsToCentimeters(durationCenter);
+  distanceRight = microsecondsToCentimeters(durationRight);
+  distanceLeft = microsecondsToCentimeters(durationLeft);
+
+  if (distanceCenter<30){
+     mp3.playTrackNumber(1, 30);
+     Serial.println("center");
+    
+  }
+  if (distanceRight<30){
+    mp3.playTrackNumber(3, 30);
+    Serial.println("right");
+  }
+  if (distanceLeft<30){
+    mp3.playTrackNumber(2, 30);
+    Serial.println("left");
+  }
+
+
+  delay(500);
+
+}
+
+
+
+long microsecondsToInches(long microseconds) {
+  // According to Parallax's datasheet for the PING))), there are 73.746
+  // microseconds per inch (i.e. sound travels at 1130 feet per second).
+  // This gives the distance travelled by the ping, outbound and return,
+  // so we divide by 2 to get the distance of the obstacle.
+  // See: https://www.parallax.com/package/ping-ultrasonic-distance-sensor-downloads/
+  return microseconds / 74 / 2;
+}
+
+long microsecondsToCentimeters(long microseconds) {
+  // The speed of sound is 340 m/s or 29 microseconds per centimeter.
+  // The ping travels out and back, so to find the distance of the object we
+  // take half of the distance travelled.
+  return microseconds / 29 / 2;
+}
+
+
+void sendATCommand(const char* command) {
+  sim800lSerial.println(command);
+  delay(500);
+  while (sim800lSerial.available()) {
+    Serial.write(sim800lSerial.read());
+  }
+}
+
+void sendSMS(String phoneNumber, String message) {
+  Serial.println("Sending SMS...");
+
+  // AT command to set the SMS mode
+  sim800lSerial.println("AT+CMGF=1");
+  delay(2000); // Increased delay
+  printSerialResponse();
+
+  // AT command to set the recipient phone number
+  sim800lSerial.print("AT+CMGS=\"");
+  sim800lSerial.print(phoneNumber);
+  sim800lSerial.println("\"");
+  delay(2000); // Increased delay
+  printSerialResponse();
+
+  // Send the SMS message
+  sim800lSerial.print(message);
+  delay(2000); // Increased delay
+  sim800lSerial.write(26); // Send Ctrl+Z to indicate the end of the message
+  delay(2000); // Increased delay
+  printSerialResponse();
+
+  Serial.println("SMS Sent!");
+}
+
+void printSerialResponse() {
+  while (sim800lSerial.available()) {
+    Serial.write(sim800lSerial.read());
+  }
+}
